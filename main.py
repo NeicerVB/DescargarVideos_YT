@@ -1,7 +1,7 @@
 import telebot
 import telebot.types as types
-import re
-from download_videos_yt import Descargar_Video_YT
+from download_videos_yt import Descargar
+import os
 
 bot = telebot.TeleBot("7475116863:AAGDbBYKL8Cu4ijSNHwCmEmBKMXFvRMlq6Q")
 
@@ -27,39 +27,78 @@ def tabla_fija(message):
 def consulta(call):
 	if call.data == "download_video":
 		# Aquí va el código para descargar el video
-		bot.send_message(call.message.chat.id, "Ingrese la URL del video de YouTube:")
-		bot.register_next_step_handler(call.message, verificar_url)
+		bot.send_message(
+			call.message.chat.id,
+			"Ingrese la URL del video de YouTube:"
+		)
+		bot.register_next_step_handler(
+			call.message,
+			lambda message: verificar_url(message, call.data) 
+		)
+
 	elif call.data == "download_audio":
-		# PENDIENTE
-		bot.send_message(call.message.chat.id, "Ingrese la URL del video de YouTube para extraer el audio:")
-		bot.register_next_step_handler(call.message, verificar_url)
-		bot.answer_callback_query(call.id, "Funcionalidad no disponible")
+		# Aquí va el código para descargar el audio
+		bot.send_message(
+			call.message.chat.id,
+			"Ingrese la URL del video de YouTube para extraer el audio:"
+		)
+		bot.register_next_step_handler(
+			call.message,
+			lambda message: verificar_url(message, call.data)
+		)
 
 
 
-def verificar_url(message):
+def verificar_url(message, call_data):
 	if "youtu.be" in message.text:
-		descargar_video(message)
+		if call_data == "download_video":
+			descargar_video_o_audio(message, "bajar_video")
+		elif call_data == "download_audio":
+			descargar_video_o_audio(message, "bajar_audio")
+	elif "youtube.com" in message.text and "/watch?v=" in message.text:
+		if call_data == "download_video":
+			descargar_video_o_audio(message, "bajar_video")
 	else:
-		bot.send_message(message.chat.id, "URL no válida. Por favor, ingrese una URL de Youtube.")
-		bot.register_next_step_handler(message, verificar_url)
+		bot.send_message(
+			message.chat.id,
+			"URL no válida. Por favor, ingrese una URL de Youtube."
+		)
+		bot.register_next_step_handler(
+			message,
+			lambda message: verificar_url(message, call_data)
+		)
 
 
 
-def descargar_video(message):
+def descargar_video_o_audio(message, tipo_descarga):
 	URL = message.text
-	ruta_video = Descargar_Video_YT(URL)
-	subir_video_a_telegram(message, ruta_video)
+	ruta = Descargar(URL, tipo_descarga)
+	subir_video_a_telegram(message, ruta, tipo_descarga)
 
 
 
-def subir_video_a_telegram(message, ruta_video):
+def subir_video_a_telegram(message, ruta_video, tipo_descarga):
 	try:
-		with open(ruta_video, 'rb') as video:
-			bot.send_video(message.chat.id, video, timeout=120)
+		file_size = os.path.getsize(ruta_video) # Obtener el tamaño del archivo en bytes
+		max_size = 50 * 1024 * 1024  # 50 MB
+
+		if tipo_descarga == "bajar_video":
+			if file_size < max_size:
+				with open(ruta_video, 'rb') as video:
+					bot.send_video(message.chat.id, video, timeout=2000)
+			else: # Si el archivo es mayor a 50 MB, enviarlo como documento
+				with open(ruta_video, 'rb') as video:
+					bot.send_document(message.chat.id, video, timeout=2000)
+
+		elif tipo_descarga == "bajar_audio":
+			if file_size < max_size:
+				with open(ruta_video, 'rb') as audio:
+					bot.send_audio(message.chat.id, audio, timeout=2000)
+			else: # Si el archivo es mayor a 50 MB, enviarlo como documento
+				with open(ruta_video, 'rb') as audio:
+					bot.send_document(message.chat.id, audio, timeout=2000)
 	except Exception as e:
-		bot.send_message(message.chat.id, f"Error al enviar el video {video}")
+		bot.send_message(message.chat.id, f"Error al enviar el archivo {ruta_video}: {str(e)}")
 
 
-
-bot.polling(timeout=120, long_polling_timeout=120)
+bot.polling(timeout=2000, long_polling_timeout=2000)
